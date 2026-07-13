@@ -48,7 +48,7 @@ UniCORE.Jitsi is published as a **four-repo family**:
 
 Sister repos:
 
-- [`UniSaaS.UniCORE.Jitsi`](https://github.com/bryanunitek/UniSaaS.UniCORE.Jitsi)
+- [`UniSaaS.UniCORE.Jitsi`](https://git.unitek-systems.com/UniCORE/UniSaaS.UniCORE.Jitsi) (mirror: [GitHub](https://github.com/bryanunitek/UniSaaS.UniCORE.Jitsi))
 - `UniCORE.Jitsi-Claw (private)`
 - `UniSaaS.UniCORE.Jitsi-Claw (private)`
 
@@ -75,17 +75,17 @@ Sister repos:
 ## Related repositories — UniCORE programme
 
 **Foundation triad (gift, public, CC BY 4.0):**
-- [`UniVERSE`](https://github.com/bryanunitek/UniVERSE) — programme
-- [`TrueAI`](https://github.com/bryanunitek/TrueAI) — Foundation (Nine Invariants)
-- [`UniCORE-AI`](https://github.com/bryanunitek/UniCORE-AI) — reference architecture (12 Levels)
+- [`UniVERSE`](https://git.unitek-systems.com/UniCORE/UniVERSE) (mirror: [GitHub](https://github.com/bryanunitek/UniVERSE)) — programme
+- [`TrueAI`](https://git.unitek-systems.com/UniCORE/TrueAI) (mirror: [GitHub](https://github.com/bryanunitek/TrueAI)) — Foundation (Nine Invariants)
+- [`UniCORE-AI`](https://git.unitek-systems.com/UniCORE/UniCORE-AI) (mirror: [GitHub](https://github.com/bryanunitek/UniCORE-AI)) — reference architecture (12 Levels)
 
 **Implementation reference (deployment-shape pair):**
-- [`UniCORE`](https://github.com/bryanunitek/UniCORE) — on-prem-shape
-- [`UniSaaS.UniCORE`](https://github.com/bryanunitek/UniSaaS.UniCORE) — SaaS-shape
+- [`UniCORE`](https://git.unitek-systems.com/UniCORE/UniCORE) (mirror: [GitHub](https://github.com/bryanunitek/UniCORE)) — on-prem-shape
+- [`UniSaaS.UniCORE`](https://git.unitek-systems.com/UniCORE/UniSaaS.UniCORE) (mirror: [GitHub](https://github.com/bryanunitek/UniSaaS.UniCORE)) — SaaS-shape
 
 **Substrate-services layer (deployment-shape pair):**
-- [`UniCORE.GVB`](https://github.com/bryanunitek/UniCORE.GVB) — on-prem-shape
-- [`UniSaaS.UniCORE.GVB`](https://github.com/bryanunitek/UniSaaS.UniCORE.GVB) — SaaS-shape
+- [`UniCORE.GVB`](https://git.unitek-systems.com/UniCORE/UniCORE.GVB) (mirror: [GitHub](https://github.com/bryanunitek/UniCORE.GVB)) — on-prem-shape
+- [`UniSaaS.UniCORE.GVB`](https://git.unitek-systems.com/UniCORE/UniSaaS.UniCORE.GVB) (mirror: [GitHub](https://github.com/bryanunitek/UniSaaS.UniCORE.GVB)) — SaaS-shape
 
 **Forked-upstream building blocks:**
 - UniCORE.Avalonia family (4 repos) — cross-platform UI
