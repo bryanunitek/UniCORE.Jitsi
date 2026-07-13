@@ -70,12 +70,12 @@ For a comprehensive description of all Jitsi Meet's security aspects, please che
 For a detailed description of Jitsi Meet's End-to-End Encryption (E2EE) implementation,
 please check [this link](https://jitsi.org/e2ee-whitepaper/).
 
-For information on reporting security vulnerabilities in Jitsi Meet, see [SECURITY.md](./SECURITY.md).
+For information on reporting security vulnerabilities in Jitsi Meet, see [SECURITY.md](https://git.unitek-systems.com/UniCORE/UniCORE.Jitsi/src/branch/main/SECURITY.md) (mirror: [GitHub](https://github.com/bryanunitek/UniCORE.Jitsi/blob/main/SECURITY.md)).
 
 ## Contributing
 
 If you are looking to contribute to Jitsi Meet, first of all, thank you! Please
-see our [guidelines for contributing](CONTRIBUTING.md).
+see our [guidelines for contributing](https://git.unitek-systems.com/UniCORE/UniCORE.Jitsi/src/branch/main/CONTRIBUTING.md) (mirror: [GitHub](https://github.com/bryanunitek/UniCORE.Jitsi/blob/main/CONTRIBUTING.md)).
 
 <br />
 <br />
