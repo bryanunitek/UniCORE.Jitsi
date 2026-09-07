@@ -115,6 +115,7 @@
         }
     },
     "chat": {
+        "delete": "Delete",
         "deleteMessage": "Delete",
         "deletedMessage": "This message was deleted.",
         "deletedMessageByMe": "You deleted this message.",
@@ -187,6 +188,13 @@
         "close": "Close",
         "dontShowAgain": "Don't show me this again",
         "installExtensionText": "Install the extension for Google Calendar and Office 365 integration"
+    },
+    "clientRequirements": {
+        "rejectDescription": "This app version can not send or receive audio or video in this meeting.",
+        "rejectTitle": "An update is required",
+        "seeDetails": "See details here",
+        "warnDescription": "This app version is missing a feature that this meeting uses. Please update it.",
+        "warnTitle": "An update is recommended"
     },
     "closedCaptionsTab": {
         "emptyState": "The closed captions content will be available once a moderator starts it",
@@ -410,6 +418,7 @@
         "lockTitle": "Lock failed",
         "login": "Login",
         "loginFailed": "Login failed.",
+        "loginNotCompleted": "Login was not completed, so you are not connected to this meeting.",
         "loginOnResume": "Your authentication session has expired. You need to login again to continue the meeting.",
         "loginPopupBlocked": "Login popup was blocked by your browser.",
         "loginQuestion": "Are you sure you want to login and leave the conference?",
@@ -417,6 +426,8 @@
         "logoutTitle": "Logout",
         "maxUsersLimitReached": "The limit for maximum number of participants has been reached. The conference is full. Please contact the meeting owner or try again later!",
         "maxUsersLimitReachedTitle": "Maximum participants limit reached",
+        "meetingTimeLimitReached": "This meeting has ended because it reached its time limit. Start a new meeting to continue.",
+        "meetingTimeLimitReachedTitle": "Meeting time limit reached",
         "micConstraintFailedError": "Your microphone does not satisfy some of the required constraints.",
         "micNotFoundError": "Microphone was not found.",
         "micNotSendingData": "Go to your computer's settings to unmute your mic and adjust its level",

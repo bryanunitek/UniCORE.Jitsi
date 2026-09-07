@@ -515,6 +515,7 @@ export interface IConfig {
      */
     hideLobbyButton?: boolean;
     hideLoginButton?: boolean;
+    hideMissingCapabilityWarnings?: boolean;
     hideParticipantsStats?: boolean;
     hideRecordingLabel?: boolean;
     hosts?: {
@@ -742,6 +743,7 @@ export interface IConfig {
     };
     timeTimer?: {
         enabled?: boolean;
+        suppressForSeconds?: number;
     };
     tokenAuthInline?: boolean;
     tokenAuthUrl?: string;
