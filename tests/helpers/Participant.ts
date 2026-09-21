@@ -41,6 +41,18 @@ export const P5 = 'p5';
 export const P6 = 'p6';
 
 /**
+ * How long to wait for a script to return a result, mirroring `connectionRetryTimeout` in the wdio configs.
+ * That setting covers the classic HTTP commands, but a WebDriver BiDi script call goes over the session's
+ * websocket, where a call aimed at a browsing context that has gone away simply never gets a response. That
+ * is worse than slow: wdio's waitUntil arms its own timeout only once a condition has been evaluated, so a
+ * first evaluation that never settles hangs the wait with no error at all, and the test spends its whole
+ * mocha budget before failing with an uninformative "Timeout of 180000ms exceeded". Bounding the call keeps
+ * the failure attributable to the script that got stuck. See also switchToIFrame(), which is where such a
+ * context has been observed being pinned.
+ */
+const EXECUTE_TIMEOUT = 30_000;
+
+/**
  * Participant.
  */
 export class Participant {
@@ -51,6 +63,16 @@ export class Participant {
      */
     private _name: string;
     private _endpointId: string;
+
+    /**
+     * The browser session this participant is bound to, when not using a multiremote instance.
+     */
+    private _driver?: WebdriverIO.Browser;
+
+    /**
+     * Whether this participant runs the load-test client rather than the full application.
+     */
+    private _loadTest: boolean;
     /**
      * The token that this participant was initialized with.
      */
@@ -131,6 +153,8 @@ export class Participant {
         this._name = options.name;
         this._token = options.token;
         this._iFrameApi = options.iFrameApi || false;
+        this._loadTest = options.loadTest || false;
+        this._driver = options.driver;
     }
 
     /**
@@ -143,12 +167,30 @@ export class Participant {
     async execute<ReturnValue, InnerArguments extends any[]>(
             script: string | ((...innerArgs: InnerArguments) => ReturnValue),
             ...args: InnerArguments): Promise<ReturnValue> {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+
+        // @ts-ignore
+        const result = this.driver.execute(script, ...args) as Promise<ReturnValue>;
+
+        // The timeout below can win the race, and this promise then settles with nobody waiting on it.
+        // An unhandled rejection would take down the whole worker, so keep it handled.
+        result.catch(() => undefined);
+
         try {
-            // @ts-ignore
-            return await this.driver.execute(script, ...args);
+            return await Promise.race([
+                result,
+                new Promise<ReturnValue>((_, reject) => {
+                    timer = setTimeout(
+                        () => reject(new Error(
+                            `Timeout of ${EXECUTE_TIMEOUT}ms executing a script for ${this._name}.`)),
+                        EXECUTE_TIMEOUT);
+                })
+            ]);
         } catch (error) {
             console.error('An error occurred while trying to execute a script: ', error);
             throw error;
+        } finally {
+            clearTimeout(timer);
         }
     }
 
@@ -179,7 +221,14 @@ export class Participant {
      * The driver it uses.
      */
     get driver() {
-        return multiRemoteBrowser.getInstance(this._name);
+        return this._driver ?? multiRemoteBrowser.getInstance(this._name);
+    }
+
+    /**
+     * Whether this participant runs the load-test client rather than the full application.
+     */
+    get isLoadTest() {
+        return this._loadTest;
     }
 
     /**
@@ -226,11 +275,28 @@ export class Participant {
 
         if (this._iFrameApi) {
             config.room = 'iframeAPITest.html';
+        } else if (this._loadTest) {
+            config.room = 'loadTest.html';
         }
 
         let url = urlObjectToString(config) || '';
 
-        if (this._iFrameApi) {
+        if (this._loadTest) {
+            // The uploaded wrapper page (see the malleus wdio config); it loads config.js and lib-jitsi-meet from
+            // the deployment and the uploaded client bundle, which takes the room and config from the hash.
+            const baseUrl = new URL(this.driver.options.baseUrl || '');
+            let tenant = options.tenant ?? (baseUrl.pathname.length > 1 ? baseUrl.pathname.substring(1) : '');
+
+            // The page prepends it to "config.js", so it needs the trailing slash options.tenant comes without.
+            if (tenant && !tenant.endsWith('/')) {
+                tenant += '/';
+            }
+
+            // @ts-ignore
+            url = `${this.driver.loadTestPageBase}${url}&domain="${baseUrl.host}"&room="${options.roomName}"`
+                // @ts-ignore
+                + `&tenant="${tenant}"&bundle="${this.driver.loadTestBundle}"`;
+        } else if (this._iFrameApi) {
             const baseUrl = new URL(this.driver.options.baseUrl || '');
 
             // @ts-ignore
@@ -252,8 +318,8 @@ export class Participant {
         // drop the leading '/' so we can use the tenant if any
         url = url.startsWith('/') ? url.substring(1) : url;
 
-        if (options.tenant && !this._iFrameApi) {
-            // For the iFrame API the tenant is passed in a different way.
+        if (options.tenant && !this._iFrameApi && !this._loadTest) {
+            // For the iFrame API and the load-test page the tenant is passed in a different way.
             url = `/${options.tenant}/${url}`;
         }
         if (options.urlAppendString) {
@@ -275,38 +341,56 @@ export class Participant {
             await this.switchToIFrame();
         }
 
-        if (!options.skipPrejoinButtonClick
-            // @ts-ignore
-            && !Boolean(await this.execute(() => config.prejoinConfig?.enabled === false))) {
+        if (!options.skipPrejoinButtonClick && !this._loadTest) {
             // The prejoin Join button can be in the DOM before conference.init has run and React click
             // handlers are mounted (e.g. when driver.url() returns before the page fully loads on a slow
             // remote grid, or when the iFrame API wrapper fires onload before the embedded app inits).
-            // APP.store is created during conference.init, so gate the click on it to avoid the race.
+            // APP.store is created during conference.init, so gate the click on it to avoid the race. It
+            // also has to come before the `config` probe below, which reads a global the app script
+            // defines. Failed evaluations are retried rather than propagated: this is the first script run
+            // against a freshly loaded page (or, with the iFrame API, a frame just switched into).
             await this.driver.waitUntil(
-                // @ts-ignore
-                () => this.execute(() => typeof APP !== 'undefined' && Boolean(APP.store)),
+                async () => {
+                    try {
+                        // @ts-ignore
+                        return await this.execute(() => typeof APP !== 'undefined' && Boolean(APP.store));
+                    } catch (e) {
+                        return false;
+                    }
+                },
                 {
                     timeout: 30_000,
                     timeoutMsg: `Timeout waiting for Jitsi app to initialize for ${this._name}.`
                 }
             );
 
-            // if prejoin is enabled we want to click the join button
-            const p1PreJoinScreen = this.getPreJoinScreen();
+            // @ts-ignore
+            if (!await this.execute(() => config.prejoinConfig?.enabled === false)) {
+                // if prejoin is enabled we want to click the join button
+                const p1PreJoinScreen = this.getPreJoinScreen();
 
-            await p1PreJoinScreen.waitForLoading();
+                await p1PreJoinScreen.waitForLoading();
 
-            const joinButton = p1PreJoinScreen.getJoinButton();
+                const joinButton = p1PreJoinScreen.getJoinButton();
 
-            await joinButton.waitForDisplayed();
-            await joinButton.click();
+                await joinButton.waitForDisplayed();
+                await joinButton.click();
+            }
         }
 
         if (!options.skipWaitToJoin) {
             await this.waitForMucJoinedOrError();
         }
 
-        await this.postLoadProcess();
+        if (this._loadTest) {
+            // The load-test client has no UI to adjust; just record the session like postLoadProcess does.
+            await this.execute((name, sessionId, prefix) => {
+                document.title = `${name}`;
+                console.log(`${new Date().toISOString()} ${prefix} sessionId: ${sessionId}`);
+            }, this._name, this.driver.sessionId, LOG_PREFIX);
+        } else {
+            await this.postLoadProcess();
+        }
 
         return this;
     }
@@ -384,6 +468,11 @@ export class Participant {
      * Checks if the participant is in the meeting.
      */
     isInMuc() {
+        if (this._loadTest) {
+            // @ts-ignore
+            return this.execute(() => typeof APP !== 'undefined' && Boolean(APP.room?.isJoined()));
+        }
+
         return this.execute(() => typeof APP !== 'undefined' && APP.conference?.isJoined());
     }
 
@@ -393,6 +482,10 @@ export class Participant {
      */
     async waitForMucJoinedOrError(): Promise<void> {
         await this.driver.waitUntil(async () => {
+            if (this._loadTest) {
+                return await this.isInMuc();
+            }
+
             return await this.isInMuc() || await this.getPasswordDialog().isOpen()
                 || await this.getNotifications().getNotificationText(MAX_USERS_TEST_ID)
                 || await this.getNotifications().getNotificationText(TOKEN_AUTH_FAILED_TEST_ID)
@@ -767,8 +860,53 @@ export class Participant {
         // before switching rather than failing immediately with "iframe doesn't exist" on slower backends.
         await iframe.waitForExist({ timeout: 10_000 });
 
-        await this.driver.switchFrame(iframe);
-        this._inMainFrame = false;
+        // Existing is not enough to switch into it. The iframe is created with its src already set, so the element
+        // is there while its document is still the initial about:blank, and switchFrame() pins whichever browsing
+        // context it finds at that moment - it resolves iframe.contentWindow to a context id and aims every later
+        // BiDi command at that id. The app document then replaces about:blank in a context of its own (the wrapper
+        // page is served from file://, so the app is always cross origin), and a switch that lands in the window in
+        // between leaves every following script call aimed at a context that no longer exists: no response, no
+        // error, and waitUntil cannot time out while its first evaluation is still pending. Waiting for the
+        // wrapper's jitsiAPI.test, which it sets from the External API's onload, puts the switch after the app
+        // document has loaded.
+        await this.driver.waitUntil(
+            // @ts-ignore
+            () => this.execute(() => Boolean(window.jitsiAPI?.test)),
+            {
+                timeout: 30_000,
+                timeoutMsg: `Timeout waiting for the iframe API to load for ${this._name}.`
+            }
+        );
+
+        const MAX_ATTEMPTS = 3;
+
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            // Re-select the iframe right before switching rather than reusing the handle fetched above: the
+            // wait for jitsiAPI.test can itself take up to 30s, and switchFrame() pins whatever browsing
+            // context the handle resolves to at that moment, so a stale handle reintroduces the same class of
+            // bug the wait above exists to avoid.
+            await this.driver.switchFrame(this.driver.$('iframe'));
+            this._inMainFrame = false;
+
+            // A switch can still land on a context that is gone or about to be replaced a second time (e.g. an
+            // internal redirect inside the app), which looks identical from here: no response, no error. Confirm
+            // the context is actually alive before trusting it, instead of finding out via some later, unrelated
+            // timeout.
+            const alive = await this.execute(() => document.readyState === 'complete')
+                .catch(() => false);
+
+            if (alive) {
+                return;
+            }
+
+            this._inMainFrame = true;
+            await this.driver.switchFrame(null);
+
+            if (attempt === MAX_ATTEMPTS) {
+                throw new Error(`Switched into a dead iframe context for ${this._name} after ${
+                    MAX_ATTEMPTS} attempts.`);
+            }
+        }
     }
 
     /**
@@ -789,6 +927,15 @@ export class Participant {
         console.log(`Hanging up (${this.name})`);
         if ((await this.driver.getUrl()).endsWith('/base.html')) {
             console.log(`Already hung up (${this.name})`);
+
+            return;
+        }
+
+        if (this._loadTest) {
+            // The load-test client leaves the room and disconnects from its unload handler, so navigating away
+            // is the hangup. There is no iframe to switch out of either.
+            await this.driver.url('/base.html');
+            console.log(`Hung up (${this.name})`);
 
             return;
         }
@@ -821,10 +968,31 @@ export class Participant {
         // conference URL and puts the driver in a broken state for any subsequent ensureOneParticipant call.
         await this.switchToMainFrame();
 
-        await this.driver.url('/base.html')
+        // driver.url() can silently fail to land on /base.html (the known pre-wdio-v9.9.1 BiDi bug
+        // the catch below guards against, or any other transient navigation error) - swallowing that
+        // unconditionally previously let hangup() return as if it succeeded while the page was still
+        // on the conference. The next ensureOneParticipant call then sees alreadyOnBasePage === false
+        // and falls into the expensive switchToIFrame() fallback right when the page is least stable,
+        // which is the same class of "no response, no error" context-pinning failure documented on
+        // switchToIFrame() itself. Verify we actually got there and retry a bounded number of times
+        // instead of trusting a swallowed exception.
+        const MAX_ATTEMPTS = 3;
 
-            // This was fixed in wdio v9.9.1, we can drop once we update to that version
-            .catch(_ => {}); // eslint-disable-line @typescript-eslint/no-empty-function
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            await this.driver.url('/base.html')
+
+                // This was fixed in wdio v9.9.1, we can drop once we update to that version
+                .catch(_ => {}); // eslint-disable-line @typescript-eslint/no-empty-function
+
+            if ((await this.driver.getUrl()).endsWith('/base.html')) {
+                return;
+            }
+
+            if (attempt === MAX_ATTEMPTS) {
+                throw new Error(`${this.name} failed to navigate to /base.html after hanging up, `
+                    + `after ${MAX_ATTEMPTS} attempts.`);
+            }
+        }
     }
 
     /**
