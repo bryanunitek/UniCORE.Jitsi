@@ -5,10 +5,11 @@ import { PARTICIPANT_ROLE } from '../base/participants/constants';
 import { getLocalParticipant, isLocalParticipantModerator } from '../base/participants/functions';
 import MiddlewareRegistry from '../base/redux/MiddlewareRegistry';
 import { toState } from '../base/redux/functions';
+import { takePreloadedIcons } from '../preload/functions';
 
 import { SET_DYNAMIC_BRANDING_DATA, SET_DYNAMIC_BRANDING_READY } from './actionTypes';
 import { setDynamicBrandingIcons } from './actions.any';
-import { fetchCustomIcons } from './functions.any';
+import { fetchCustomIcons, getDynamicBrandingUrl } from './functions.any';
 import logger from './logger';
 
 MiddlewareRegistry.register(store => next => action => {
@@ -20,10 +21,15 @@ MiddlewareRegistry.register(store => next => action => {
         // The icons are loaded separately so the theme and the rest of the branding are
         // applied right away instead of waiting for every SVG to arrive.
         if (customIcons) {
-            fetchCustomIcons(customIcons)
+            const url = getDynamicBrandingUrl(store.getState());
+
+            fetchCustomIcons(customIcons, url ? takePreloadedIcons(url) : undefined)
                 .then(icons => store.dispatch(setDynamicBrandingIcons(icons)))
                 .catch((error: any) => {
                     logger.error('Error fetching branded custom icons:', error);
+
+                    // Nothing is going to arrive anymore, so do not leave the icons marked as pending.
+                    store.dispatch(setDynamicBrandingIcons({}));
                 });
         }
 
