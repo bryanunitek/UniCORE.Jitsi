@@ -53,6 +53,18 @@ export const P6 = 'p6';
 const EXECUTE_TIMEOUT = 30_000;
 
 /**
+ * How long to give a freshly switched-into iframe context to answer a trivial script. A live context answers in
+ * milliseconds even on a loaded grid; one that does not answer this never will (see switchToIFrame()), so there is
+ * no point in giving it the full EXECUTE_TIMEOUT before moving on to recovery.
+ */
+const IFRAME_PROBE_TIMEOUT = 5_000;
+
+/**
+ * How many times joinConference() loads the iframe API wrapper page again when the iframe it created is dead.
+ */
+const MAX_IFRAME_RELOADS = 2;
+
+/**
  * Participant.
  */
 export class Participant {
@@ -90,6 +102,14 @@ export class Participant {
      * directly), or not (when it's loaded in an iframe).
      */
     private _inMainFrame: boolean = true;
+
+    /**
+     * Set once switchToIFrame() has given up on this participant's iframe: every attempt landed on a browsing
+     * context that does not answer. Later callers (the failure hook in wdio.conf.ts in particular) use it to skip
+     * another round of the same 30s-per-attempt wait, which would otherwise push a failed test past its mocha
+     * budget and replace the real error with a bare timeout.
+     */
+    private _iframeUnreachable = false;
 
     /**
      * The default config to use when joining.
@@ -167,6 +187,21 @@ export class Participant {
     async execute<ReturnValue, InnerArguments extends any[]>(
             script: string | ((...innerArgs: InnerArguments) => ReturnValue),
             ...args: InnerArguments): Promise<ReturnValue> {
+        return this._executeWithin(EXECUTE_TIMEOUT, script, ...args);
+    }
+
+    /**
+     * Runs a script with a bound on how long to wait for its result. See execute().
+     *
+     * @param {number} timeout - How long to wait for the result, in ms.
+     * @param {string | Function} script - The script that will be executed.
+     * @param {any[]} args - The rest of the arguments.
+     * @returns {ReturnValue} - The result of the script.
+     */
+    private async _executeWithin<ReturnValue, InnerArguments extends any[]>(
+            timeout: number,
+            script: string | ((...innerArgs: InnerArguments) => ReturnValue),
+            ...args: InnerArguments): Promise<ReturnValue> {
         let timer: ReturnType<typeof setTimeout> | undefined;
 
         // @ts-ignore
@@ -182,8 +217,8 @@ export class Participant {
                 new Promise<ReturnValue>((_, reject) => {
                     timer = setTimeout(
                         () => reject(new Error(
-                            `Timeout of ${EXECUTE_TIMEOUT}ms executing a script for ${this._name}.`)),
-                        EXECUTE_TIMEOUT);
+                            `Timeout of ${timeout}ms executing a script for ${this._name}.`)),
+                        timeout);
                 })
             ]);
         } catch (error) {
@@ -338,7 +373,7 @@ export class Participant {
         }
 
         if (this._iFrameApi) {
-            await this.switchToIFrame();
+            await this._switchToFreshIFrame(url);
         }
 
         if (!options.skipPrejoinButtonClick && !this._loadTest) {
@@ -371,10 +406,7 @@ export class Participant {
 
                 await p1PreJoinScreen.waitForLoading();
 
-                const joinButton = p1PreJoinScreen.getJoinButton();
-
-                await joinButton.waitForDisplayed();
-                await joinButton.click();
+                await this._clickPrejoinJoinButton(p1PreJoinScreen);
             }
         }
 
@@ -393,6 +425,156 @@ export class Participant {
         }
 
         return this;
+    }
+
+    /**
+     * Switches into the iframe of a just loaded iframe API wrapper page, loading the page again when the iframe it
+     * created is dead.
+     *
+     * A dead iframe is one whose browsing context Chrome's BiDi mapper never gets an execution context for (see
+     * switchToIFrame()): nothing sent into it ever answers, so retrying the switch cannot help and the only way to
+     * a working frame is a new one. Loading the wrapper again creates it, and the race that produced the dead one
+     * is rare enough that a fresh frame is almost always fine.
+     *
+     * @param {string} url - The wrapper page URL to load again.
+     * @returns {Promise<void>}
+     */
+    private async _switchToFreshIFrame(url: string): Promise<void> {
+        for (let reload = 0; ; reload++) {
+            try {
+                await this.switchToIFrame();
+
+                return;
+            } catch (e) {
+                if (!this._iframeUnreachable || reload === MAX_IFRAME_RELOADS) {
+                    throw e;
+                }
+
+                console.log(`The iframe of ${this._name} never answered, loading the page again (${
+                    reload + 1}/${MAX_IFRAME_RELOADS}).`);
+            }
+
+            this._iframeUnreachable = false;
+
+            // Through a blank page, so the same URL is a real load and not a no-op.
+            await this.driver.url('about:blank');
+            await this.driver.url(url);
+            await this.waitForPageToLoad();
+        }
+    }
+
+    /**
+     * Clicks the prejoin Join button and verifies that the click reached the app, retrying a bounded number of
+     * times when it did not.
+     *
+     * The button is re-rendered when the initial local tracks land, a few hundred ms after conference.init on a
+     * cached page load, and a click that arrives while React is swapping the node under it is dispatched to a
+     * detached element and dropped: the WebDriver click succeeds, but the onClick handler never runs and the
+     * participant sits on the prejoin screen until the join wait times out. joiningInProgress is set synchronously
+     * by the handler (see joinConference in the prejoin actions), so it tells a click that took from one that did
+     * not. It is cleared again when the connection or the conference fails, which can happen within the window
+     * below (an invalid token, a locked room), so the connection state is consulted too: connecting, connected or
+     * failed, any of them means the click reached the app and clicking again would start a second join.
+     *
+     * A lost click does not always mean a swapped node, though: on the grid the driver has reported successful
+     * clicks on a button that stayed the same node throughout, with the handler never running and focus never
+     * leaving the display name input, i.e. the input never reached the document at all. When the node the driver
+     * clicked is still the live one, the retry dispatches the click from inside the page instead, which does not
+     * go through the driver's input pipeline. Either way the retry logs which case it saw and where focus was.
+     *
+     * @param {PreJoinScreen} prejoinScreen - The prejoin screen page object.
+     * @returns {Promise<void>}
+     */
+    private async _clickPrejoinJoinButton(prejoinScreen: PreJoinScreen): Promise<void> {
+        const MAX_ATTEMPTS = 3;
+        let previousElementId: string | undefined;
+
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            const joinButton = prejoinScreen.getJoinButton();
+
+            await joinButton.waitForDisplayed();
+
+            const elementId = await joinButton.elementId;
+            const sameNode = elementId === previousElementId;
+            let kind: string;
+
+            previousElementId = elementId;
+
+            if (!sameNode) {
+                kind = 'driver';
+                await joinButton.click();
+            } else if (attempt < MAX_ATTEMPTS) {
+                // One more driver click on the same node, this time watched from inside the page: whether any mouse
+                // event reaches the document at all tells a click lost between the driver and the browser from one
+                // the page received and dropped.
+                kind = 'driver, probed';
+                await this.execute(() => {
+                    const seen: string[] = [];
+                    const record = (e: Event) => {
+                        seen.push(`${e.type}@${(e.target as Element)?.tagName?.toLowerCase()}`);
+                        document.body.dataset.joinClickProbe = seen.join(' ');
+                    };
+
+                    document.body.dataset.joinClickProbe = '';
+                    [ 'mousedown', 'mouseup', 'click', 'keydown' ].forEach(
+                        type => document.addEventListener(type, record, true));
+                });
+                await joinButton.click();
+            } else {
+                kind = 'in-page';
+                await prejoinScreen.clickJoinButtonFromPage();
+            }
+
+            try {
+                await this.driver.waitUntil(
+                    async () => await this.execute(() => {
+                        // @ts-ignore
+                        const state = APP.store.getState();
+                        const { connecting, connection, error } = state['features/base/connection'];
+
+                        return Boolean(state['features/prejoin']?.joiningInProgress)
+                            || !state['features/prejoin']?.showPrejoin
+                            || Boolean(connecting || connection || error)
+                            || Boolean(APP.conference?.isJoined());
+                    }),
+                    {
+                        timeout: 3000,
+                        interval: 100,
+                        timeoutMsg: `The prejoin Join click did not register for ${this._name}.`
+                    }
+                );
+
+                return;
+            } catch (e) {
+                if (attempt === MAX_ATTEMPTS) {
+                    throw new Error(
+                        `The prejoin Join click did not register for ${this._name} after ${MAX_ATTEMPTS} attempts.`);
+                }
+
+                const activeElement = await this.execute(() => {
+                    const el = document.activeElement;
+
+                    if (!el) {
+                        return 'none';
+                    }
+
+                    const testId = el.getAttribute('data-testid');
+
+                    return `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}${testId ? `[${testId}]` : ''}`;
+                }).catch(() => 'unknown');
+
+                const probe = await this.execute(() => document.body.dataset.joinClickProbe ?? '')
+                    .catch(() => 'unknown');
+                const message = `The prejoin Join click did not register for ${this._name} (attempt ${attempt}, ${
+                    kind} click, node ${elementId}, focus on ${activeElement}${
+                    kind === 'driver, probed' ? `, document saw [${probe}]` : ''}), clicking again.`;
+
+                console.log(message);
+
+                // Also into the browser log, which is what the CI archive keeps.
+                await logInfo(this.driver, message).catch(() => undefined);
+            }
+        }
     }
 
     /**
@@ -869,14 +1051,19 @@ export class Participant {
         // error, and waitUntil cannot time out while its first evaluation is still pending. Waiting for the
         // wrapper's jitsiAPI.test, which it sets from the External API's onload, puts the switch after the app
         // document has loaded.
-        await this.driver.waitUntil(
-            // @ts-ignore
-            () => this.execute(() => Boolean(window.jitsiAPI?.test)),
-            {
-                timeout: 30_000,
-                timeoutMsg: `Timeout waiting for the iframe API to load for ${this._name}.`
-            }
-        );
+        try {
+            await this.driver.waitUntil(
+                // @ts-ignore
+                () => this.execute(() => Boolean(window.jitsiAPI?.test)),
+                {
+                    timeout: 30_000,
+                    timeoutMsg: `Timeout waiting for the iframe API to load for ${this._name}.`
+                }
+            );
+        } catch (e) {
+            this._iframeUnreachable = true;
+            throw e;
+        }
 
         const MAX_ATTEMPTS = 3;
 
@@ -888,11 +1075,15 @@ export class Participant {
             await this.driver.switchFrame(this.driver.$('iframe'));
             this._inMainFrame = false;
 
-            // A switch can still land on a context that is gone or about to be replaced a second time (e.g. an
-            // internal redirect inside the app), which looks identical from here: no response, no error. Confirm
-            // the context is actually alive before trusting it, instead of finding out via some later, unrelated
-            // timeout.
-            const alive = await this.execute(() => document.readyState === 'complete')
+            // A switch can still land on a context that never answers. Traced on a rejoin in the same tab: the
+            // context id was the right one (it matched browsingContext.getTree, and the classic switch into the
+            // frame succeeded), but Chrome's BiDi mapper never got an execution context for that frame, so every
+            // script sent into it, including wdio's own polyfill injection right after the frame was created,
+            // waited until the page was torn down and then failed with "execution contexts cleared". That looks
+            // identical to a context about to be replaced (e.g. an internal redirect inside the app): no response,
+            // no error. Confirm the context is actually alive before trusting it, with a short bound: a live one
+            // answers in milliseconds, and a dead one never does, whatever the timeout.
+            const alive = await this._executeWithin(IFRAME_PROBE_TIMEOUT, () => document.readyState === 'complete')
                 .catch(() => false);
 
             if (alive) {
@@ -903,10 +1094,18 @@ export class Participant {
             await this.driver.switchFrame(null);
 
             if (attempt === MAX_ATTEMPTS) {
+                this._iframeUnreachable = true;
                 throw new Error(`Switched into a dead iframe context for ${this._name} after ${
                     MAX_ATTEMPTS} attempts.`);
             }
         }
+    }
+
+    /**
+     * Whether switchToIFrame() has already given up on this participant's iframe. See _iframeUnreachable.
+     */
+    get isIframeUnreachable(): boolean {
+        return this._iframeUnreachable;
     }
 
     /**

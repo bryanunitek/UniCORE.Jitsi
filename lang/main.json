@@ -46,7 +46,8 @@
         "errorLimitReached": "Couldn't translate everyone at once. Turn on translation for individual participants instead.",
         "errorRoomDisabled": "Audio translation is turned off for this meeting. Enable it in Moderator settings.",
         "errorSpeakerUnavailable": "Can't translate this participant — they're no longer in the meeting.",
-        "labelTooltip": "Translation in progress"
+        "labelTooltip": "Translation in progress",
+        "labelTooltipPlaying": "Translated audio is still playing — wait before speaking"
     },
     "bandwidthSettings": {
         "assumedBandwidthBps": "e.g. 10000000 for 10 Mbps",
@@ -262,7 +263,8 @@
         "yes": "yes"
     },
     "customPanel": {
-        "close": "Close"
+        "close": "Close",
+        "title": "AI Assist"
     },
     "dateUtils": {
         "earlier": "Earlier",
@@ -1405,6 +1407,10 @@
         "text": "Press the <i>Rejoin</i> button to reconnect.",
         "title": "Your video call was interrupted because this computer went to sleep."
     },
+    "systemWideUserNotification": {
+        "button": "Learn more",
+        "dontShowAgain": "Don't show again"
+    },
     "termsView": {
         "title": "Terms"
     },
@@ -1526,6 +1532,7 @@
                 "label": "Stereo"
             }
         },
+        "aiAssist": "AI Assist",
         "audioRoute": "Select the sound device",
         "audioSettings": "Audio settings",
         "audioTranslation": "Translate audio",
@@ -1540,7 +1547,6 @@
         "closeParticipantsPane": "Close participants pane",
         "closeReactionsMenu": "Close reactions menu",
         "closedCaptions": "Closed captions",
-        "copilot": "Copilot",
         "disableNoiseSuppression": "Disable extra noise suppression",
         "disableReactionSounds": "You can disable reaction sounds for this meeting",
         "documentClose": "Close shared document",
@@ -1712,16 +1718,10 @@
         "mute": "Participant is muted",
         "muted": "Muted",
         "pinToStage": "Pin to stage",
-        "receivingTranslatedAudio": "You're receiving translated audio",
         "remoteControl": "Start / Stop remote control",
         "screenSharing": "Participant is sharing their screen",
         "show": "Show on stage",
         "showSelfView": "Show self view",
-        "translationEnabledForYou": "Translation enabled for you",
-        "translationOnAndReceiving": "Translation on · receiving",
-        "translationStillListening": "{{count}} participant is still hearing the translation — wait before speaking",
-        "translationStillListeningShort": "{{num}} still listening",
-        "translationStillListening_plural": "{{count}} participants are still hearing the translation — wait before speaking",
         "unpinFromStage": "Unpin",
         "verify": "Verify participant",
         "videoMuted": "Camera disabled",
