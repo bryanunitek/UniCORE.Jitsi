@@ -81,6 +81,7 @@ import {
 import { appendSuffix } from '../../react/features/display-name/functions';
 import { isEnabled as isDropboxEnabled } from '../../react/features/dropbox/functions';
 import { setMediaEncryptionKey, toggleE2EE } from '../../react/features/e2ee/actions';
+import { getE2EEBlockingService } from '../../react/features/e2ee/functions';
 import {
     addStageParticipant,
     resizeFilmStrip,
@@ -99,6 +100,7 @@ import {
     resizeLargeVideo
 } from '../../react/features/large-video/actions.web';
 import { answerKnockingParticipant, toggleLobbyMode } from '../../react/features/lobby/actions';
+import { getLobbyEnabled } from '../../react/features/lobby/functions';
 import { setSecondScreen } from '../../react/features/multi-screen/actions.web';
 import { setNoiseSuppressionEnabled } from '../../react/features/noise-suppression/actions';
 import { hideNotification, showNotification } from '../../react/features/notifications/actions';
@@ -258,13 +260,14 @@ function initCommands() {
             const muteMediaType = mediaType ? mediaType : MEDIA_TYPE.AUDIO;
             const localParticipant = getLocalParticipant(state);
 
-            // Check if targeting the local participant
+            // Check if targeting the local participant. Always mute here, never toggle, so that
+            // repeating the command on an already muted local participant does not unmute them.
             if (participantId === localParticipant?.id) {
 
                 if (muteMediaType === MEDIA_TYPE.AUDIO) {
-                    APP.conference.toggleAudioMuted(false);
+                    APP.conference.muteAudio(true);
                 } else if (muteMediaType === MEDIA_TYPE.VIDEO) {
-                    APP.conference.toggleVideoMuted(false, true);
+                    APP.conference.muteVideo(true);
                 }
 
                 return;
@@ -278,8 +281,8 @@ function initCommands() {
 
             APP.store.dispatch(muteRemote(participantId, muteMediaType));
         },
-        'toggle-lobby': isLobbyEnabled => {
-            APP.store.dispatch(toggleLobbyMode(isLobbyEnabled));
+        'toggle-lobby': enabled => {
+            APP.store.dispatch(toggleLobbyMode(enabled));
         },
         'password': password => {
             const { conference, passwordRequired }
@@ -625,6 +628,13 @@ function initCommands() {
             APP.store.dispatch(overwriteParticipantsNames(participantList));
         },
         'toggle-e2ee': enabled => {
+            const blockingService = enabled && getE2EEBlockingService(APP.store.getState());
+
+            if (blockingService) {
+                logger.warn(`Not turning on end-to-end encryption while ${blockingService} is in use`);
+
+                return;
+            }
             APP.store.dispatch(toggleE2EE(enabled));
         },
         'set-media-encryption-key': keyInfo => {
@@ -977,7 +987,6 @@ function initCommands() {
                 defaultTab: SETTINGS_TABS.VIRTUAL_BACKGROUND }));
         },
         'end-conference': () => {
-            APP.store.dispatch(endConference());
             const state = APP.store.getState();
             const conference = getCurrentConference(state);
 
@@ -1149,6 +1158,9 @@ function initCommands() {
             break;
         case 'is-sharing-screen':
             callback(Boolean(APP.conference.isSharingScreen));
+            break;
+        case 'is-lobby-enabled':
+            callback(Boolean(getLobbyEnabled(APP.store.getState())));
             break;
         case 'is-start-silent':
             callback(Boolean(APP.store.getState()['features/base/config'].startSilent));
@@ -1502,6 +1514,19 @@ class API {
         this._sendEvent({
             name: 'moderation-status-changed',
             mediaType,
+            enabled
+        });
+    }
+
+    /**
+     * Notify the external application that the lobby mode status has changed.
+     *
+     * @param {boolean} enabled - Whether or not lobby mode is enabled.
+     * @returns {void}
+     */
+    notifyLobbyModeChanged(enabled) {
+        this._sendEvent({
+            name: 'lobby-mode-changed',
             enabled
         });
     }
