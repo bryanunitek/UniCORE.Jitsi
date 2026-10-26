@@ -160,6 +160,11 @@ var config = {
     // Shows/hides the moderator setting for chat permissions.
     // showChatPermissionsModeratorSetting: false,
 
+    // Shows/hides the moderator setting that restricts video sharing to the participants with the
+    // `share-video` permission. The restriction is enforced by the mod_filter_messages prosody module,
+    // thus enable this only when that module is loaded.
+    // showSharedVideoPermissionsModeratorSetting: false,
+
     // screenshotCapture : {
     //      Enables the screensharing capture feature.
     //      enabled: false,
@@ -448,6 +453,15 @@ var config = {
     //    // consentLearnMoreLink: 'https://jitsi.org/meet/consent',
     // },
 
+    // Voice agents: server-side AI participants provisioned through the voice-agent API.
+    // voiceAgents: {
+    //     // Ask each participant before an agent may hear them (they are muted until they decide, and only
+    //     // participants who allow the agent hear it). By default agents are let in without asking.
+    //     // requireConsent: false,
+    //     // Link for the consent dialog's "Learn more" link.
+    //     // consentLearnMoreLink: 'https://jitsi.org/meet/consent',
+    // },
+
     // recordingService: {
     //     // When integrations like dropbox are enabled only that will be shown,
     //     // by enabling fileRecordingsServiceEnabled, we show both the integrations
@@ -713,7 +727,7 @@ var config = {
     // Use TURN/UDP servers for the jitsi-videobridge connection (by default
     // we filter out TURN/UDP because it is usually not needed since the
     // bridge itself is reachable via UDP)
-    // useTurnUdp: false
+    // useTurnUdp: false,
 
     // Enable support for encoded transform in supported browsers. This allows
     // E2EE to work in Safari if the corresponding flag is enabled in the browser.
