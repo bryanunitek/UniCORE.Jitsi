@@ -17,7 +17,9 @@ import { dialogStyles, pollsStyles } from './styles';
 
 const PollAnswer = (props: AbstractProps) => {
     const {
+        canClose,
         checkBoxStates,
+        closePoll,
         creatorName,
         poll,
         sendPoll,
@@ -30,7 +32,7 @@ const PollAnswer = (props: AbstractProps) => {
     } = props;
     const { changingVote, saved: pollSaved } = poll;
     const dispatch = useDispatch();
-    const { PRIMARY, SECONDARY } = BUTTON_TYPES;
+    const { PRIMARY, SECONDARY, TERTIARY } = BUTTON_TYPES;
 
     return (
         <>
@@ -63,6 +65,7 @@ const PollAnswer = (props: AbstractProps) => {
                             key = { index }
                             style = { pollsStyles.switchRow as ViewStyle } >
                             <Switch
+                                accessibilityLabel = { answer.name }
                                 checked = { checkBoxStates[index] }
                                 disabled = { poll.saved }
                                 id = 'answer-switch'
@@ -96,6 +99,15 @@ const PollAnswer = (props: AbstractProps) => {
                             type = { PRIMARY } />
                     </View>
                     : <View style = { pollsStyles.buttonRow as ViewStyle }>
+                        {
+                            canClose && <Button
+                                accessibilityLabel = 'polls.results.endPoll'
+                                id = { t('polls.results.endPoll') }
+                                labelKey = 'polls.results.endPoll'
+                                onClick = { closePoll }
+                                style = { pollsStyles.pollCreateButton }
+                                type = { TERTIARY } />
+                        }
                         <Button
                             accessibilityLabel = 'polls.answer.skip'
                             id = { t('polls.answer.skip') }

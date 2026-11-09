@@ -167,6 +167,11 @@
         "noMessagesMessage": "There are no messages in the meeting yet. Start a conversation here!",
         "privateMessage": "Private message",
         "privateNotice": "Private message to {{recipient}}",
+        "reactions": {
+            "faceWithTearsOfJoy": "Face with tears of joy",
+            "fire": "Fire",
+            "redHeart": "Red heart"
+        },
         "search": {
             "close": "Close search",
             "next": "Next match",
@@ -758,6 +763,7 @@
         "showMeWhatImSharing": "Show me what I'm sharing"
     },
     "liveStreaming": {
+        "badRequest": "The live stream request is not valid. Check the stream key and the stream settings.",
         "busy": "We're working on freeing streaming resources. Please try again in a few minutes.",
         "busyTitle": "All streamers are currently busy",
         "changeSignIn": "Switch accounts.",
@@ -768,7 +774,9 @@
         "enterStreamKeyGeneric": "Enter your live stream key or RTMP URL here.",
         "error": "Live Streaming failed. Please try again.",
         "errorAPI": "An error occurred while accessing your YouTube broadcasts. Please try logging in again.",
+        "errorGoogleApiLoad": "Google sign-in could not be loaded. Check that it is not blocked by your browser or network and try again, or enter your live stream key below.",
         "errorLiveStreamNotEnabled": "Live Streaming is not enabled on {{email}}. Please enable live streaming or log into an account with live streaming enabled.",
+        "errorPopupBlocked": "The Google sign-in popup was blocked. Allow popups for this site and try again, or enter your live stream key below.",
         "expandedOff": "The live streaming has stopped",
         "expandedOn": "The meeting is currently being live streamed",
         "expandedPending": "The live streaming is being started…",
@@ -1104,8 +1112,15 @@
             "save": "Save",
             "singleAnswer": "Allow only one answer"
         },
+        "endPollDialog": {
+            "description": "Voting ends for everyone and the poll cannot be reopened.",
+            "title": "End this poll?"
+        },
         "errors": {
-            "notUniqueOption": "Options must be unique"
+            "closeFailed": "The poll could not be ended",
+            "notUniqueOption": "Options must be unique",
+            "voteFailed": "Your vote was not counted",
+            "voteNotCounted": "Your vote was not counted, the poll has ended"
         },
         "notification": {
             "description": "Open polls tab to vote",
@@ -1113,7 +1128,9 @@
         },
         "results": {
             "changeVote": "Change vote",
+            "closed": "Voting has ended",
             "empty": "There are no polls in the meeting yet.",
+            "endPoll": "End poll",
             "hideDetailedResults": "Hide details",
             "showDetailedResults": "Show details",
             "vote": "Vote"
@@ -1170,6 +1187,7 @@
         "joinAudioByPhone": "Join with phone audio",
         "joinMeeting": "Join meeting",
         "joinMeetingInLowBandwidthMode": "Join in low bandwidth mode",
+        "joinOptions": "Join options",
         "joinWithoutAudio": "Join without audio",
         "keyboardShortcuts": "Enable Keyboard shortcuts",
         "linkCopied": "Link copied to clipboard",
@@ -1224,6 +1242,7 @@
         "alsoTranscribe": "Also transcribe this meeting?",
         "authDropboxText": "Upload to Dropbox",
         "availableSpace": "Available space: {{spaceLeft}} MB (approximately {{duration}} minutes of recording)",
+        "badRequest": "The recording settings of this meeting are not supported.",
         "beta": "BETA",
         "busy": "We're working on freeing recording resources. Please try again in a few minutes.",
         "busyTitle": "All recorders are currently busy",
@@ -1282,6 +1301,7 @@
         "storageLocation": "Storage location",
         "surfaceError": "Please select the current tab.",
         "title": "Recording",
+        "transcriptionAlreadyOn": "Transcription is already on",
         "transcriptionLanguage": "Transcription language",
         "transcriptionOptions": "Transcription options",
         "unavailable": "Oops! The {{serviceName}} is currently unavailable. We're working on resolving the issue. Please try again later.",

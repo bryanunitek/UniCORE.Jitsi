@@ -152,6 +152,11 @@ var config = {
     // votes locally.
     // showPollSingleAnswerSetting: false,
 
+    // Shows/hides the "End poll" button for the poll's creator and moderators. Closing a poll is enforced by
+    // the mod_polls_component prosody module, thus enable this only when the server runs a version of that
+    // module that supports it.
+    // showEndPollButton: false,
+
     // Disables chat feature entirely including notifications, sounds, and private messages.
     // disableChat: false,
 
@@ -164,12 +169,16 @@ var config = {
     // Disables self-view settings in UI
     // disableSelfViewSettings: false,
 
-    // Shows/hides the moderator setting for chat permissions.
+    // Shows/hides the moderator settings that restrict group chat and private chat to the participants with the
+    // `send-groupchat` and `send-private-message` permissions. The restrictions are enforced by the
+    // mod_filter_messages prosody module, thus enable this only when that module is loaded on the main MUC
+    // component and on the breakout rooms MUC component.
     // showChatPermissionsModeratorSetting: false,
 
     // Shows/hides the moderator setting that restricts video sharing to the participants with the
     // `share-video` permission. The restriction is enforced by the mod_filter_messages prosody module,
-    // thus enable this only when that module is loaded.
+    // thus enable this only when that module is loaded on the main MUC component and on the breakout rooms MUC
+    // component.
     // showSharedVideoPermissionsModeratorSetting: false,
 
     // Shows/hides the moderator setting that restricts joining a breakout room to the room a moderator
@@ -381,7 +390,7 @@ var config = {
     //     // Specifies whether participants in speaker stats should be ordered or not, and with what priority.
     //     // 'role', <- Moderators on top.
     //     // 'name', <- Alphabetically by name.
-    //     // 'hasLeft', <- The ones that have left in the bottom.
+    //     // 'hasLeft', <- The ones that have left in the bottom. Always applied first, regardless of its position.
     //     order: [
     //         'role',
     //         'name',
@@ -398,7 +407,7 @@ var config = {
     // speakerStatsOrder: [
     //  'role', <- Moderators on top
     //  'name', <- Alphabetically by name
-    //  'hasLeft', <- The ones that have left in the bottom
+    //  'hasLeft', <- The ones that have left in the bottom. Always applied first, regardless of its position
     // ], <- the order of the array elements determines priority
 
     // How many participants while in the tile view mode, before the receiving video quality is reduced from HD to SD.

@@ -25,7 +25,7 @@ const defaultState = {
 PersistenceRegistry.register(STORE_NAME, {
     ctrlAltReactionShortcutsEnabled: true,
     enabled: true
-});
+}, defaultState);
 
 ReducerRegistry.register<IKeyboardShortcutsState>(STORE_NAME,
 (state = defaultState, action): IKeyboardShortcutsState => {
