@@ -114,6 +114,7 @@ export async function joinWithFocus(roomJid) {
  *
  * @param {object} opts
  * @param {string} [opts.host='localhost']    TCP host to connect to.
+ * @param {number} [opts.port=5280]           HTTP port of the WebSocket endpoint.
  * @param {string} [opts.domain]              XMPP domain (stream header). Defaults to host.
  *                                            Set to a different VirtualHost name (e.g.
  *                                            'whitelist.localhost') to get a JID on that
@@ -123,15 +124,17 @@ export async function joinWithFocus(roomJid) {
  * @param {string} [opts.username]            SASL username for PLAIN auth. When omitted,
  *                                            ANONYMOUS auth is used.
  * @param {string} [opts.password]            SASL password for PLAIN auth.
- * @param {number} [opts.restartDelay]        Milliseconds to hold the stream restart that
+ * @param {string} [opts.resource]            Resource to request at bind. When omitted,
+ *                                            the server assigns one.
+ * @param {number} [opts.restartDelay]       Milliseconds to hold the stream restart that
  *                                            follows SASL success, so a server-side close
  *                                            can be made to land before resource binding.
  * @returns {Promise<XmppTestClient>} If start() fails after the server closed the
  *                                    stream, the rejection has `streamClosed: true`.
  */
-export async function createXmppClient({ host = 'localhost', domain, params, username, password,
-    restartDelay } = {}) {
-    const url = new URL(`ws://${host}:5280/xmpp-websocket`);
+export async function createXmppClient({ host = 'localhost', port = 5280, domain, params, username, password,
+    resource, restartDelay } = {}) {
+    const url = new URL(`ws://${host}:${port}/xmpp-websocket`);
 
     if (params) {
         for (const [ k, v ] of Object.entries(params)) {
@@ -142,6 +145,7 @@ export async function createXmppClient({ host = 'localhost', domain, params, use
     const xmpp = client({
         service: url.toString(),
         domain: domain ?? host,
+        resource,
         ...username === undefined ? {} : { username,
             password }
     });
@@ -1190,6 +1194,25 @@ export async function createXmppClient({ host = 'localhost', domain, params, use
                 pollId,
                 type: 'polls'
             }));
+        },
+
+        /**
+         * Sends an A/V moderation command to the av_moderation component, the
+         * same stanza lib-jitsi-meet AVModeration sends. Fire-and-forget —
+         * assert via the json-messages the component sends back.
+         *
+         * @param {string} componentJid  e.g. 'avmoderation.localhost'
+         * @param {object} attrs         <av_moderation> attributes, e.g.
+         *                               { enable: 'true', mediaType: 'audio' } or
+         *                               { jidToWhitelist: 'room@conference.localhost/nick', mediaType: 'audio' }
+         */
+        sendAvModeration(componentJid, attrs) {
+            return xmpp.send(
+                xml('message', { to: componentJid,
+                    id: `avm-${++_counter}` },
+                    xml('av_moderation', attrs)
+                )
+            );
         },
 
         /**

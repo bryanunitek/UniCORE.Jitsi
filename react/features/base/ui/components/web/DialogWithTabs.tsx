@@ -14,6 +14,11 @@ import ContextMenuItem from './ContextMenuItem';
 
 const MOBILE_BREAKPOINT = 607;
 
+/**
+ * The id of the dialog title, which also names the desktop tab list.
+ */
+const TITLE_ID = 'dialog-with-tabs-title';
+
 const useStyles = makeStyles()(theme => {
     return {
         dialog: {
@@ -48,6 +53,11 @@ const useStyles = makeStyles()(theme => {
                 width: '100%',
                 borderRight: 'none'
             }
+        },
+
+        tabList: {
+            display: 'flex',
+            flexDirection: 'column'
         },
 
         menuItemMobile: {
@@ -160,6 +170,8 @@ interface IProps extends IBaseProps {
     tabs: IDialogTab<any>[];
 }
 
+const getTabButtonId = (tabName?: string) => `dialogtab-button-${tabName}`;
+
 const DialogWithTabs = ({
     className,
     defaultTab,
@@ -172,16 +184,19 @@ const DialogWithTabs = ({
     const [ selectedTab, setSelectedTab ] = useState<string | undefined>(defaultTab ?? tabs[0].name);
     const [ userSelected, setUserSelected ] = useState(false);
     const [ tabStates, setTabStates ] = useState(tabs.map(tab => tab.props));
-    const videoSpaceWidth = useSelector((state: IReduxState) => state['features/base/responsive-ui'].videoSpaceWidth);
+    // The dialog is a modal over the whole viewport and its styles switch on a viewport media query, so the
+    // layout decision must follow the viewport too. The video space shrinks when a side panel is open, which
+    // would put the dialog in mobile mode under the desktop styles.
+    const clientWidth = useSelector((state: IReduxState) => state['features/base/responsive-ui'].clientWidth);
     const [ isMobile, setIsMobile ] = useState(false);
 
     useEffect(() => {
-        if (videoSpaceWidth <= MOBILE_BREAKPOINT) {
+        if (clientWidth <= MOBILE_BREAKPOINT) {
             !isMobile && setIsMobile(true);
         } else {
             isMobile && setIsMobile(false);
         }
-    }, [ videoSpaceWidth, isMobile ]);
+    }, [ clientWidth, isMobile ]);
 
     useEffect(() => {
         if (isMobile) {
@@ -207,7 +222,7 @@ const DialogWithTabs = ({
         if (userSelected) {
             document.querySelector<HTMLElement>(isMobile
                 ? `.${classes.title}`
-                : `#${`dialogtab-button-${selectedTab}`}`
+                : `#${getTabButtonId(selectedTab)}`
             )?.focus();
             setUserSelected(false);
         }
@@ -227,6 +242,11 @@ const DialogWithTabs = ({
     }, []);
 
     const onTabKeyDown = useCallback((index: number) => (event: React.KeyboardEvent<HTMLDivElement>) => {
+        // Leave modified arrows (Cmd/Ctrl/Alt + arrow) to the browser and the OS.
+        if (event.altKey || event.ctrlKey || event.metaKey) {
+            return;
+        }
+
         let newTab: IDialogTab<any> | null = null;
 
         if (event.key === 'ArrowUp') {
@@ -238,12 +258,18 @@ const DialogWithTabs = ({
         }
 
         if (newTab !== null) {
+            // The key is handled here, so stop the browser from also using it to scroll a scrollable
+            // ancestor.
+            event.preventDefault();
             onUserSelection(newTab.name);
         }
-    }, [ tabs.length ]);
+    }, [ tabs ]);
 
     const onMobileKeyDown = useCallback((tabName: string) => (event: React.KeyboardEvent<HTMLDivElement>) => {
         if (event.key === ' ' || event.key === 'Enter') {
+            // ContextMenuItem skips its own Space/Enter handling when onKeyDown is set, so consume the key
+            // here the same way, otherwise Space is left free to scroll.
+            event.preventDefault();
             onUserSelection(tabName);
         }
     }, [ classes.contentContainer ]);
@@ -318,46 +344,49 @@ const DialogWithTabs = ({
             size = 'large'
             titleKey = { titleKey }>
             {(!isMobile || !selectedTab) && (
-
-                // The container itself must not take focus. Only the selected tab is in the tab order (the
-                // tabs move focus between themselves with the arrow keys), and screen readers announce the
-                // tab list's label when focus lands on a tab, so a focus stop here is an extra, empty step.
-                <div
-                    aria-label = { titleKey ? t(titleKey) : undefined }
-                    aria-orientation = 'vertical'
-                    className = { classes.sidebar }
-                    role = { isMobile ? undefined : 'tablist' }>
+                <div className = { classes.sidebar }>
                     <div className = { classes.titleContainer }>
                         <h1
                             className = { classes.title }
+                            id = { TITLE_ID }
                             tabIndex = { -1 }>
                             {t(titleKey ?? '')}
                         </h1>
                         {isMobile && closeIcon}
                     </div>
-                    {tabs.map((tab, index) => {
-                        const label = t(tab.labelKey);
+                    {/* A tab list may only contain tabs, so the title and the mobile Close button stay outside
+                    of it. On mobile the items are plain buttons that open the sections, so the element has no
+                    role and no tab list attributes. The list itself takes no focus: only the selected tab is
+                    in the tab order and the arrow keys move between the tabs. */}
+                    <div
+                        aria-labelledby = { isMobile || !titleKey ? undefined : TITLE_ID }
+                        aria-orientation = { isMobile ? undefined : 'vertical' }
+                        className = { classes.tabList }
+                        role = { isMobile ? undefined : 'tablist' }>
+                        {tabs.map((tab, index) => {
+                            const label = t(tab.labelKey);
 
-                        /**
-                         * When not on mobile, the items behave as tabs,
-                         * that's why we set `controls`, `role` and `selected` attributes
-                         * only when not on mobile, they are useful only for the tab behavior.
-                         */
-                        return (
-                            <ContextMenuItem
-                                accessibilityLabel = { label }
-                                className = { cx(isMobile && classes.menuItemMobile) }
-                                controls = { isMobile ? undefined : `dialogtab-content-${tab.name}` }
-                                icon = { tab.icon }
-                                id = { `dialogtab-button-${tab.name}` }
-                                key = { tab.name }
-                                onClick = { onClick(tab.name) }
-                                onKeyDown = { isMobile ? onMobileKeyDown(tab.name) : onTabKeyDown(index) }
-                                role = { isMobile ? undefined : 'tab' }
-                                selected = { tab.name === selectedTab }
-                                text = { label } />
-                        );
-                    })}
+                            /**
+                             * When not on mobile, the items behave as tabs,
+                             * that's why we set `controls`, `role` and `selected` attributes
+                             * only when not on mobile, they are useful only for the tab behavior.
+                             */
+                            return (
+                                <ContextMenuItem
+                                    accessibilityLabel = { label }
+                                    className = { cx(isMobile && classes.menuItemMobile) }
+                                    controls = { isMobile ? undefined : `dialogtab-content-${tab.name}` }
+                                    icon = { tab.icon }
+                                    id = { getTabButtonId(tab.name) }
+                                    key = { tab.name }
+                                    onClick = { onClick(tab.name) }
+                                    onKeyDown = { isMobile ? onMobileKeyDown(tab.name) : onTabKeyDown(index) }
+                                    role = { isMobile ? undefined : 'tab' }
+                                    selected = { tab.name === selectedTab }
+                                    text = { label } />
+                            );
+                        })}
+                    </div>
                 </div>
             )}
             {(!isMobile || selectedTab) && (
@@ -385,7 +414,7 @@ const DialogWithTabs = ({
                     )}
                     {tabs.map(tab => (
                         <div
-                            aria-labelledby = { isMobile ? undefined : `${tab.name}-button` }
+                            aria-labelledby = { isMobile ? undefined : getTabButtonId(tab.name) }
                             className = { cx(classes.content, tab.name !== selectedTab && 'hide') }
                             id = { `dialogtab-content-${tab.name}` }
                             key = { tab.name }
